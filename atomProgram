@@ -1,0 +1,160 @@
+#include "HTTPClient.h"
+#include "M5Atom.h"
+#include "WiFi.h"
+#include "Ticker.h"
+#include "Arduino_JSON.h"
+
+
+/* After M5Atom is started or reset
+the program in the setUp () function will be run, and this part will only be run once.
+在 M5Atom 启动或者复位后，即会开始执行setup()函数中的程序，该部分只会执行一次。 */
+int color=0xffffff;
+HTTPClient http;
+boolean conectedToBlindstick=false;
+
+
+const int VIBRATION_LEVEL_OFF=0;
+const int VIBRATION_LEVEL_LOW=6;
+const int VIBRATION_LEVEL_MED=3;
+const int VIBRATION_LEVEL_CONST=1;
+
+
+const float DISTANCE_TRESHOLD_CLOSE=20;
+const float DISTANCE_TRESHOLD_MED=30;
+const float DISTANCE_TRESHOLD_FAR=60;
+
+const int FRONT=0;
+const int LEFT=1;
+const int RIGHT=2;
+
+
+
+struct {
+  int counter;
+  int vibrationLevel;  
+  Ticker ticker;  
+} vibrationState[3];
+
+void setup(){
+    M5.begin(true, false, true);   //Clear the serial port buffer, set the serial port baud rate to 115200; initialize the LED matrix.  清空串口缓冲区,设置串口波特率为 115200；初始化LED矩阵
+    delay(50);    
+    WiFi.begin("blindstick", "blindstick");
+    pinMode(25, OUTPUT);
+    digitalWrite(25, HIGH);        
+    Serial.begin(9600);
+}
+
+void updateVibration(){
+  if (vibrationState[0].vibrationLevel==0) {
+    vibrationState[0].ticker.detach();
+    //digitalWrite(25, LOW);
+    M5.dis.fillpix(0x000000);
+  }else if (vibrationState[0].vibrationLevel==VIBRATION_LEVEL_CONST) {
+    vibrationState[0].ticker.detach();
+    //digitalWrite(25, HIGH);
+    M5.dis.fillpix(0xffffff);
+  } 
+  else vibrationState[0].ticker.attach_ms(100,swichVibrate,0);
+}
+
+void swichVibrate(int direction) {
+  if (!(vibrationState[0].counter%vibrationState[0].vibrationLevel)) {    
+    digitalWrite(25, HIGH);
+    M5.dis.fillpix(0xffffff);
+  } else {    
+    digitalWrite(25, LOW);
+     M5.dis.fillpix(0x000000);
+  }
+  vibrationState[0].counter++;
+}
+
+void loop(){
+  M5.update();    //You need to add m5.update () to read the state of the key, see System for details
+
+  
+  updateWifiStatus();
+  
+    if (M5.Btn.isPressed()) {    //If the button is pressed
+      http.begin("http://raspberrypi:8080/sayHello");
+      int httpResponseCode = http.GET();
+    }
+
+    if(vibrating==false){
+      digitalWrite(25,LOW);
+      vibrating=true;
+      if(ledBlink==false){
+        digitalWrite(27,LOW);
+        ledBlink=true;
+        Serial.println("Led close");
+        delay(1000);
+      }
+      Serial.println("Turning low");
+    }
+    else{
+      digitalWrite(25,HIGH);
+      vibrating=false;
+      if(ledBlink==true){
+        digitalWrite(27,HIGH);
+        ledBlink=false;
+        Serial.println("Led open");
+        delay(1000);
+      }
+      Serial.println("Turning high");  
+    }
+    
+  updateDistances();
+  M5.dis.fillpix(color);
+  delay(1000);
+
+  
+  
+}
+
+void updateDistances(){
+  if (conectedToBlindstick) {
+    http.begin("http://raspberrypi:8080/getDistances");
+    int httpCode = http.GET();
+
+    if (httpCode==200) {
+      String payload = http.getString();
+      JSONVar distancesObject = JSON.parse(payload);
+
+      if (JSON.typeof(distancesObject) == "undefined") {
+       Serial.println("error parsing json");  
+     } else {      
+        double front=double(distancesObject["f"]);
+        double left=double(distancesObject["l"]);
+        double right=double(distancesObject["r"]);
+
+        if (front<=DISTANCE_TRESHOLD_CLOSE) {
+          vibrationState[0].vibrationLevel=VIBRATION_LEVEL_CONST;
+        } else if (front<=DISTANCE_TRESHOLD_MED) {
+          vibrationState[0].vibrationLevel=VIBRATION_LEVEL_MED;          
+        } else if (front<=DISTANCE_TRESHOLD_FAR) {
+          vibrationState[0].vibrationLevel=VIBRATION_LEVEL_LOW;           
+        } else {
+          vibrationState[0].vibrationLevel=VIBRATION_LEVEL_OFF;
+        }
+        updateVibration();
+        Serial.print("Front: "); Serial.print(front);  Serial.print(" level: "); Serial.println(vibrationState[0].vibrationLevel); 
+       }
+     }
+    }
+    http.end();
+  }
+
+
+void updateWifiStatus() {
+  if (conectedToBlindstick) return;
+  if (!WiFi.isConnected()) {
+    color=0xff0000; 
+  } else {
+    color=0x00ff00;
+     http.begin("http://raspberrypi:8080/sayConnectedGlove");
+     int httpResponseCode = http.GET(); 
+     conectedToBlindstick=true;
+  }
+}
+
+    
+  
