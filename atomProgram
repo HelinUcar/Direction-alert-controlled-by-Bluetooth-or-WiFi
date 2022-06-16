@@ -6,8 +6,7 @@
 
 
 /* After M5Atom is started or reset
-the program in the setUp () function will be run, and this part will only be run once.
-在 M5Atom 启动或者复位后，即会开始执行setup()函数中的程序，该部分只会执行一次。 */
+the program in the setUp () function will be run, and this part will only be run once. */
 int color=0xffffff;
 HTTPClient http;
 boolean conectedToBlindstick=false;
@@ -36,7 +35,7 @@ struct {
 } vibrationState[3];
 
 void setup(){
-    M5.begin(true, false, true);   //Clear the serial port buffer, set the serial port baud rate to 115200; initialize the LED matrix.  清空串口缓冲区,设置串口波特率为 115200；初始化LED矩阵
+    M5.begin(true, false, true);   //Clear the serial port buffer, set the serial port baud rate to 115200; initialize the LED matrix. 
     delay(50);    
     WiFi.begin("blindstick", "blindstick");
     pinMode(25, OUTPUT);
